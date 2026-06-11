@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>픽셀 클라이머 (Pixel Climber) - Google Sheets 연동</title>
+    <!-- Tailwind CSS for elegant responsive UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts for Pixel Style (fallback to sans-serif if not loaded) -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DungGeunMo&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'DungGeunMo', 'Press Start 2P', monospace, sans-serif;
+            background-color: #0b0f19;
+            image-rendering: pixelated;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            image-rendering: pixelated;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+        }
+        /* Custom scrollbar for instructions */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col items-center justify-between p-2 md:p-4 overflow-x-hidden">
+
+    <!-- Header Section -->
+    <header class="w-full max-w-4xl flex justify-between items-center bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-xl px-4 py-2.5 mb-2 shadow-lg">
+        <div class="flex items-center gap-2">
+            <span class="text-yellow-400 animate-bounce">🧗‍♂️</span>
+            <h1 class="text-lg md:text-2xl font-bold tracking-wider bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">PIXEL CLIMBER</h1>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="guideBtn" class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs md:text-sm border border-slate-700 transition">
+                <i data-lucide="help-circle" class="w-4 h-4"></i> 연동 방법
+            </button>
+            <button id="settingsBtn" class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs md:text-sm border border-slate-700 transition">
+                <i data-lucide="settings" class="w-4 h-4"></i> 시트 연동
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="w-full max-w-4xl flex flex-col lg:flex-row gap-4 items-center justify-center flex-grow">
+        
+        <!-- Game Canvas Container -->
+        <div class="relative flex flex-col items-center">
+            <!-- Score & Lives display directly above Canvas -->
+            <div class="w-[360px] md:w-[400px] flex justify-between items-center px-2 py-1.5 bg-slate-950 border border-b-0 border-slate-800 rounded-t-xl text-xs md:text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="text-blue-400">SCORE:</span>
+                    <span id="scoreDisplay" class="font-bold text-yellow-400 text-lg">0</span>
+                    <span class="text-slate-500">m</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1">
+                        <span class="text-purple-400">GEM:</span>
+                        <span id="gemDisplay" class="font-bold text-teal-300">0</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <span id="livesDisplay" class="text-red-500 font-bold">❤️❤️❤️</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas Screen -->
+            <div class="relative bg-slate-950 border-2 border-slate-800 rounded-b-xl overflow-hidden shadow-2xl">
+                <canvas id="gameCanvas" width="400" height="600" class="block bg-[#111625]"></canvas>
+                
+                <!-- Start/Game Over Overlays -->
+                <div id="overlay" class="absolute inset-0 bg-slate-950/85 flex flex-col items-center justify-center p-6 text-center transition-all duration-300">
+                    <div id="startMenu" class="space-y-6">
+                        <h2 class="text-3xl md:text-4xl font-extrabold text-blue-400 tracking-wider animate-pulse">PIXEL CLIMBER</h2>
+                        <p class="text-xs md:text-sm text-slate-400 max-w-xs leading-relaxed">
+                            하늘을 향해 🧗 클라이밍하세요! 떨어지는 바위와 가시 플랫폼을 조심하며 끝없이 높이 올라가세요.
+                        </p>
+                        <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg text-left text-xs space-y-1 text-slate-300">
+                            <div class="flex justify-between"><span>이동:</span><span class="text-yellow-400">◀ ▶ 방향키 / A, D</span></div>
+                            <div class="flex justify-between"><span>점프:</span><span class="text-yellow-400">▲ 방향키 / Space / W</span></div>
+                            <div class="text-slate-500 text-[10px] mt-1.5 text-center">모바일 사용자는 화면 아래 조이스틱을 사용하세요.</div>
+                        </div>
+                        <button id="startGameBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl text-md shadow-lg shadow-blue-500/30 active:scale-95 transition-transform">
+                            게임 시작하기
+                        </button>
+                    </div>
+
+                    <div id="gameOverMenu" class="hidden space-y-5">
+                        <h2 class="text-3xl font-extrabold text-red-500 tracking-widest">GAME OVER</h2>
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+                            <p class="text-sm text-slate-400">최종 등반 고도</p>
+                            <p class="text-4xl font-extrabold text-yellow-400"><span id="finalScore">0</span><span class="text-lg text-slate-400 ml-1">m</span></p>
+                            <p class="text-xs text-teal-300">획득 보석: <span id="finalGems">0</span>개</p>
+                        </div>
+
+                        <!-- Name Input for Ranking -->
+                        <div class="space-y-2 w-full max-w-xs">
+                            <label for="playerName" class="block text-xs text-slate-400 text-left">랭킹에 등록할 이름을 입력하세요:</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="playerName" maxlength="8" placeholder="PLAYER" class="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 flex-grow focus:outline-none focus:border-blue-500">
+                                <button id="submitScoreBtn" class="bg-teal-600 hover:bg-teal-500 px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                    등록
+                                </button>
+                            </div>
+                            <p id="submissionStatus" class="text-[11px] text-slate-400 min-h-[16px] text-left"></p>
+                        </div>
+
+                        <button id="restartGameBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-bold py-3 px-6 rounded-xl text-sm transition active:scale-95">
+                            다시 시도하기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard & Controls Column -->
+        <div class="w-full max-w-[400px] flex flex-col gap-3">
+            
+            <!-- Real-time Leaderboard -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl flex-grow min-h-[220px] flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm md:text-base font-bold text-blue-400 flex items-center gap-1.5">
+                        <i data-lucide="trophy" class="w-4 h-4 text-yellow-400"></i> 실시간 랭킹 보드
+                    </h3>
+                    <span id="syncIndicator" class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span> 로컬 모드
+                    </span>
+                </div>
+                
+                <div class="overflow-y-auto custom-scrollbar flex-grow text-xs space-y-1.5 max-h-[240px]" id="leaderboardList">
+                    <!-- Dynamic ranking items -->
+                    <div class="text-center text-slate-500 py-6">랭킹을 불러오는 중...</div>
+                </div>
+                
+                <div class="mt-2.5 pt-2 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-500">
+                    <span>* 구글 스프레드시트와 실시간 연동 가능</span>
+                    <button id="refreshRankBtn" class="hover:text-white transition flex items-center gap-0.5">
+                        <i data-lucide="rotate-cw" class="w-3 h-3"></i> 갱신
+                    </button>
+                </div>
+            </div>
+
+            <!-- Touch Controllers (visible on mobile/tablet) -->
+            <div class="lg:hidden bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 flex justify-between items-center gap-4">
+                <!-- Move Buttons -->
+                <div class="flex gap-2">
+                    <button id="btnLeft" class="w-14 h-14 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 rounded-xl border border-slate-700 flex items-center justify-center text-2xl shadow-md touch-none">◀</button>
+                    <button id="btnRight" class="w-14 h-14 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 rounded-xl border border-slate-700 flex items-center justify-center text-2xl shadow-md touch-none">▶</button>
+                </div>
+                <!-- Jump Button -->
+                <div>
+                    <button id="btnJump" class="w-24 h-14 bg-blue-600 hover:bg-blue-500 active:bg-blue-400 rounded-xl border border-blue-500 flex items-center justify-center text-lg font-bold text-white shadow-md shadow-blue-600/20 touch-none">JUMP 🧗</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Description -->
+    <footer class="w-full max-w-4xl text-center text-[11px] text-slate-600 mt-4 border-t border-slate-900 pt-2 flex flex-col md:flex-row justify-between items-center gap-2">
+        <p>© 2026 Pixel Climber Climbing Game. All rights reserved.</p>
+        <p>HTML5 Canvas + Web Audio API + Google Apps Script Integration</p>
+    </footer>
+
+    <!-- Google Sheet Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                    <i data-lucide="database" class="text-blue-400 w-5 h-5"></i> Google Sheets 연동 설정
+                </h3>
+                <button class="closeModal text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <div class="space-y-3 text-xs md:text-sm text-slate-300">
+                <p class="leading-relaxed">
+                    본인의 구글 스프레드시트에 점수를 실시간 저장하려면 발급받은 <strong>Google Apps Script 웹앱 URL</strong>을 아래에 등록하세요.
+                </p>
+                <div class="space-y-1.5">
+                    <label class="block text-slate-400 font-medium">웹앱 API URL:</label>
+                    <input type="url" id="sheetUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="bg-slate-950/60 p-3 border border-slate-800 rounded-lg text-xs text-slate-400 leading-relaxed">
+                    💡 <span class="text-yellow-400 font-bold">주의:</span> URL을 입력하지 않으면 게임이 안전한 로컬 저장공간에 모의 점수 데이터를 저장합니다.
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button class="closeModal px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition">취소</button>
+                <button id="saveSettingsBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition">적용 및 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Apps Script Guide Modal -->
+    <div id="guideModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                    <i data-lucide="book-open" class="text-teal-400 w-5 h-5"></i> 구글 시트 연동 가이드
+                </h3>
+                <button class="closeModal text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <div class="overflow-y-auto custom-scrollbar pr-1 text-xs md:text-sm text-slate-300 space-y-4 flex-grow">
+                <div class="space-y-2">
+                    <h4 class="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                        <span class="bg-teal-500 text-slate-950 px-1.5 py-0.5 rounded text-[10px] font-extrabold">STEP 1</span> 구글 스프레드시트 만들기
+                    </h4>
+                    <p class="text-slate-400 pl-4 leading-relaxed">
+                        1. <a href="https://sheets.google.com" target="_blank" class="text-blue-400 underline">Google Sheets</a>로 이동하여 새로운 시트를 만듭니다.<br>
+                        2. 시트의 첫 번째 행에 다음과 같이 열 머리글을 지정해 주세요:
+                    </p>
+                    <div class="pl-4">
+                        <table class="border border-slate-800 text-center w-full max-w-sm my-1.5">
+                            <thead>
+                                <tr class="bg-slate-950 font-bold">
+                                    <th class="border border-slate-800 p-1">A열</th>
+                                    <th class="border border-slate-800 p-1">B열</th>
+                                    <th class="border border-slate-800 p-1">C열</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-slate-900/50">
+                                    <td class="border border-slate-800 p-1 text-teal-400">Name</td>
+                                    <td class="border border-slate-800 p-1 text-teal-400">Score</td>
+                                    <td class="border border-slate-800 p-1 text-teal-400">Gems</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <h4 class="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                        <span class="bg-teal-500 text-slate-950 px-1.5 py-0.5 rounded text-[10px] font-extrabold">STEP 2</span> Apps Script 코드 붙여넣기
+                    </h4>
+                    <p class="text-slate-400 pl-4 leading-relaxed">
+                        1. 구글 스프레드시트 메뉴에서 <strong>확장 프로그램 > Apps Script</strong>를 클릭합니다.<br>
+                        2. 기존 코드를 모두 지우고 아래의 코드를 복사해서 붙여넣으세요.
+                    </p>
+                    <div class="pl-4 relative">
+                        <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-[11px] overflow-x-auto text-slate-300 font-mono leading-relaxed">
+function doGet() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  var result = [];
+  
+  // 첫 번째 줄(헤더) 제외하고 데이터 수집
+  for (var i = 1; i < data.length; i++) {
+    result.push({
+      name: data[i][0],
+      score: parseInt(data[i][1]) || 0,
+      gems: parseInt(data[i][2]) || 0
+    });
+  }
+  
+  // 점수 기준 내림차순 정렬
+  result.sort(function(a, b) { return b.score - a.score; });
+  
+  // 상위 10개만 리턴
+  var top10 = result.slice(0, 10);
+  
+  return ContentService.createTextOutput(JSON.stringify(top10))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var params = JSON.parse(e.postData.contents);
+  
+  var name = params.name || "Unknown";
+  var score = params.score || 0;
+  var gems = params.gems || 0;
+  
+  sheet.appendRow([name, score, gems]);
+  
+  return ContentService.createTextOutput(JSON.stringify({ status: "success", name: name, score: score, gems: gems }))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <h4 class="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                        <span class="bg-teal-500 text-slate-950 px-1.5 py-0.5 rounded text-[10px] font-extrabold">STEP 3</span> 배포 및 URL 획득
+                    </h4>
+                    <p class="text-slate-400 pl-4 leading-relaxed">
+                        1. Apps Script 편집기 우측 상단의 <strong>배포 > 새 배포</strong>를 클릭합니다.<br>
+                        2. 유형 선택에서 <strong>웹 앱(Web App)</strong>을 선택합니다.<br>
+                        3. 구성 설정을 다음과 같이 수행합니다:<br>
+                        &nbsp;&nbsp;&bull; <strong>설명:</strong> 점수 데이터베이스 API<br>
+                        &nbsp;&nbsp;&bull; <strong>다음 사용자 권한으로 실행:</strong> <span class="text-yellow-400">나 (본인 이메일)</span><br>
+                        &nbsp;&nbsp;&bull; <strong>액세스할 수 있는 사용자:</strong> <span class="text-yellow-400">모든 사용자(Anyone)</span><br>
+                        4. <strong>배포</strong> 버튼을 클릭하고 구글 보안 액세스 승인을 완료합니다.<br>
+                        5. 배포 완료 화면에서 제공되는 <span class="text-green-400 font-semibold">웹 앱 URL</span>을 복사합니다.<br>
+                        6. 다시 이 게임 창으로 돌아와 우측 상단의 <strong>'시트 연동'</strong> 버튼을 눌러 복사한 URL을 입력해 주세요!
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2 border-t border-slate-800">
+                <button class="closeModal px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition">완료 및 닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Engine Scripts -->
+    <script>
+        // --- Retro Audio System using Web Audio API ---
+        class AudioManager {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playJump() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+            playGem() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.setValueAtTime(1200, now + 0.08);
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                
+                osc.start();
+                osc.stop(now + 0.25);
+            }
+            playHurt() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(80, this.ctx.currentTime + 0.2);
+                
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+            playGameOver() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(200, now + 0.2);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.5);
+                
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+                
+                osc.start();
+                osc.stop(now + 0.6);
+            }
+        }
+        const audio = new AudioManager();
+
+        // --- Core Pixel Assets (Draw functions mimicking pixel matrices) ---
+        const SPRITES = {
+            // Draws an 8x8 character in low-res scaled up
+            drawPlayer(ctx, x, y, size, facingRight, state) {
+                ctx.save();
+                ctx.translate(x + size/2, y + size/2);
+                if (!facingRight) ctx.scale(-1, 1);
+                
+                // Pixel Matrix for player (8x8)
+                // 1: skin, 2: clothes (red/blue), 3: hair (brown), 4: boots (black/gray), 5: rope/bag (yellow)
+                const hair = '#7c3f00';
+                const skin = '#ffdbac';
+                const shirt = '#2563eb';
+                const pants = '#dc2626';
+                const boot = '#1e293b';
+                const bag = '#eab308';
+                
+                let matrix = [
+                    [0, 0, hair, hair, hair, hair, 0, 0],
+                    [0, hair, hair, skin, skin, hair, 0, 0],
+                    [0, hair, skin, skin, skin, skin, 0, 0],
+                    [0, 0, shirt, shirt, shirt, bag, 0, 0],
+                    [0, shirt, shirt, shirt, shirt, bag, 0, 0],
+                    [0, 0, pants, pants, pants, 0, 0],
+                    [0, pants, 0, 0, pants, 0, 0],
+                    [boot, boot, 0, 0, boot, boot, 0, 0]
+                ];
+
+                // Jump sprite adjustment
+                if (state === 'jump') {
+                    matrix[6] = [pants, 0, 0, 0, 0, pants, 0, 0];
+                    matrix[7] = [boot, 0, 0, 0, 0, 0, boot, 0];
+                } else if (state === 'climb') {
+                    matrix[4] = [shirt, shirt, shirt, shirt, shirt, shirt, 0, 0];
+                }
+
+                const pixelSize = size / 8;
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const color = matrix[row][col];
+                        if (color !== 0) {
+                            ctx.fillStyle = color;
+                            ctx.fillRect(-size/2 + col * pixelSize, -size/2 + row * pixelSize, pixelSize + 0.5, pixelSize + 0.5);
+                        }
+                    }
+                }
+                ctx.restore();
+            },
+
+            // Draws 2D pixel platform
+            drawPlatform(ctx, x, y, width, height, type) {
+                ctx.save();
+                let primaryColor = '#10b981'; // normal: green
+                let secondaryColor = '#047857';
+                let accentColor = '#6ee7b7';
+
+                if (type === 'ice') {
+                    primaryColor = '#38bdf8'; // slippery: light blue
+                    secondaryColor = '#0369a1';
+                    accentColor = '#bae6fd';
+                } else if (type === 'crumbly') {
+                    primaryColor = '#b45309'; // fragile: brown
+                    secondaryColor = '#78350f';
+                    accentColor = '#f59e0b';
+                }
+
+                // Base platform color
+                ctx.fillStyle = primaryColor;
+                ctx.fillRect(x, y, width, height);
+
+                // Top grass/snow line
+                ctx.fillStyle = accentColor;
+                ctx.fillRect(x, y, width, 4);
+
+                // Bottom shadow line
+                ctx.fillStyle = secondaryColor;
+                ctx.fillRect(x, y + height - 4, width, 4);
+
+                // Draw some pixel blocks inside to look textured
+                ctx.fillStyle = secondaryColor;
+                for (let offset = 8; offset < width; offset += 24) {
+                    ctx.fillRect(x + offset, y + 6, 8, 4);
+                }
+                ctx.restore();
+            },
+
+            // Draws 2D pixel stone/rock obstacle
+            drawRock(ctx, x, y, size) {
+                ctx.save();
+                // Rock shape (circular pixelated)
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(x + 4, y + 4, size - 8, size - 8);
+                ctx.fillRect(x + 8, y, size - 16, size);
+                ctx.fillRect(x, y + 8, size, size - 16);
+
+                // Highlight/Shadow
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillRect(x + 6, y + 6, 6, 6);
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(x + size - 12, y + size - 12, 6, 6);
+                ctx.restore();
+            },
+
+            // Draws 2D pixel collectible gem
+            drawGem(ctx, x, y, size) {
+                ctx.save();
+                // Diamond pixel shape
+                ctx.fillStyle = '#2dd4bf';
+                ctx.fillRect(x + size/2 - 2, y, 4, size);
+                ctx.fillRect(x, y + size/2 - 2, size, 4);
+                ctx.fillRect(x + 3, y + 3, size - 6, size - 6);
+                
+                // Core sparkle
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x + size/2 - 2, y + size/2 - 2, 4, 4);
+                ctx.restore();
+            }
+        };
+
+        // --- Database & High Score System (Local Simulated + Google Sheet API) ---
+        const CLIMBER_DB = {
+            appId: typeof __app_id !== 'undefined' ? __app_id : 'pixel-climbing-game',
+            storageKey: 'pixel_climber_local_rankings',
+            apiEndpoint: localStorage.getItem('pixel_climber_api_url') || '',
+
+            getApiUrl() {
+                return this.apiEndpoint;
+            },
+
+            setApiUrl(url) {
+                this.apiEndpoint = url.trim();
+                localStorage.setItem('pixel_climber_api_url', this.apiEndpoint);
+            },
+
+            isApiConfigured() {
+                return this.apiEndpoint.length > 10;
+            },
+
+            // Fetch Rankings
+            async getRankings() {
+                if (this.isApiConfigured()) {
+                    try {
+                        const response = await fetch(this.apiEndpoint, { method: 'GET' });
+                        if (response.ok) {
+                            const data = await response.json();
+                            return data;
+                        }
+                    } catch (e) {
+                        console.error('구글 시트로부터 순위를 불러오는데 실패했습니다:', e);
+                    }
+                }
+                
+                // Fallback to memory / local
+                let localData = localStorage.getItem(this.storageKey);
+                if (localData) {
+                    try {
+                        return JSON.parse(localData).sort((a, b) => b.score - a.score).slice(0, 10);
+                    } catch (e) {
+                        return this.getMockData();
+                    }
+                } else {
+                    const mock = this.getMockData();
+                    localStorage.setItem(this.storageKey, JSON.stringify(mock));
+                    return mock;
+                }
+            },
+
+            // Submit Score
+            async submitScore(name, score, gems) {
+                const record = { name, score, gems };
+                let isSynced = false;
+
+                if (this.isApiConfigured()) {
+                    try {
+                        const response = await fetch(this.apiEndpoint, {
+                            method: 'POST',
+                            mode: 'no-cors', // allows posting to GAS with bypass
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(record)
+                        });
+                        isSynced = true;
+                    } catch (e) {
+                        console.error('구글 시트에 전송 실패 (로컬 우선 저장):', e);
+                    }
+                }
+
+                // Always record locally as backup or primary offline method
+                let localData = localStorage.getItem(this.storageKey);
+                let list = [];
+                if (localData) {
+                    try {
+                        list = JSON.parse(localData);
+                    } catch(e) {
+                        list = this.getMockData();
+                    }
+                } else {
+                    list = this.getMockData();
+                }
+                list.push(record);
+                list.sort((a, b) => b.score - a.score);
+                list = list.slice(0, 30); // Keep top 30
+                localStorage.setItem(this.storageKey, JSON.stringify(list));
+
+                return { success: true, isSynced };
+            },
+
+            getMockData() {
+                return [
+                    { name: '골든산악회', score: 1250, gems: 45 },
+                    { name: '도트대장', score: 980, gems: 32 },
+                    { name: '클라이머X', score: 710, gems: 24 },
+                    { name: '피치몬', score: 450, gems: 15 },
+                    { name: '산악신동', score: 320, gems: 8 }
+                ];
+            }
+        };
+
+        // --- Game Class Engine ---
+        class GameEngine {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+
+                // Game States
+                this.isPlaying = false;
+                this.score = 0;
+                this.gems = 0;
+                this.lives = 3;
+                this.cameraY = 0;
+                this.targetCameraY = 0;
+
+                // Player physical parameters
+                this.player = {
+                    x: 180,
+                    y: 450,
+                    vx: 0,
+                    vy: 0,
+                    width: 28,
+                    height: 28,
+                    facingRight: true,
+                    isGrounded: false,
+                    lastPlatform: null,
+                    state: 'idle', // 'idle', 'jump', 'climb'
+                    invulnTimer: 0
+                };
+
+                // Elements list
+                this.platforms = [];
+                this.rocks = [];
+                this.collectibles = [];
+                this.particles = [];
+
+                // Controllers
+                this.keys = {};
+                this.touchKeys = { left: false, right: false, jump: false };
+
+                // Generation tracking
+                this.highestGeneratedY = 0;
+
+                this.bindInputs();
+            }
+
+            bindInputs() {
+                // Keyboard Bindings
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.key] = true;
+                    // Prevent page scroll
+                    if (['Space', 'ArrowUp', 'ArrowDown', ' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                        e.preventDefault();
+                    }
+                });
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.key] = false;
+                });
+
+                // Mobile Touch Controls
+                const leftBtn = document.getElementById('btnLeft');
+                const rightBtn = document.getElementById('btnRight');
+                const jumpBtn = document.getElementById('btnJump');
+
+                const handleLeft = (e) => { e.preventDefault(); this.touchKeys.left = true; };
+                const stopLeft = (e) => { e.preventDefault(); this.touchKeys.left = false; };
+                const handleRight = (e) => { e.preventDefault(); this.touchKeys.right = true; };
+                const stopRight = (e) => { e.preventDefault(); this.touchKeys.right = false; };
+                const handleJump = (e) => { e.preventDefault(); this.touchKeys.jump = true; };
+                const stopJump = (e) => { e.preventDefault(); this.touchKeys.jump = false; };
+
+                leftBtn.addEventListener('touchstart', handleLeft);
+                leftBtn.addEventListener('touchend', stopLeft);
+                rightBtn.addEventListener('touchstart', handleRight);
+                rightBtn.addEventListener('touchend', stopRight);
+                jumpBtn.addEventListener('touchstart', handleJump);
+                jumpBtn.addEventListener('touchend', stopJump);
+
+                // Add mouse fallbacks just in case
+                leftBtn.addEventListener('mousedown', () => this.touchKeys.left = true);
+                leftBtn.addEventListener('mouseup', () => this.touchKeys.left = false);
+                rightBtn.addEventListener('mousedown', () => this.touchKeys.right = true);
+                rightBtn.addEventListener('mouseup', () => this.touchKeys.right = false);
+                jumpBtn.addEventListener('mousedown', () => this.touchKeys.jump = true);
+                jumpBtn.addEventListener('mouseup', () => this.touchKeys.jump = false);
+            }
+
+            reset() {
+                this.score = 0;
+                this.gems = 0;
+                this.lives = 3;
+                this.cameraY = 0;
+                this.targetCameraY = 0;
+                this.highestGeneratedY = 400;
+
+                // Reset player
+                this.player.x = 180;
+                this.player.y = 450;
+                this.player.vx = 0;
+                this.player.vy = 0;
+                this.player.facingRight = true;
+                this.player.isGrounded = false;
+                this.player.lastPlatform = null;
+                this.player.invulnTimer = 0;
+
+                // Reset arrays
+                this.platforms = [];
+                this.rocks = [];
+                this.collectibles = [];
+                this.particles = [];
+
+                // Create initial platform block base
+                this.platforms.push({
+                    x: 0,
+                    y: 550,
+                    width: this.width,
+                    height: 50,
+                    type: 'normal'
+                });
+
+                // Generate starting platform steps
+                for (let i = 0; i < 6; i++) {
+                    this.spawnPlatformAtHeight(500 - i * 80);
+                }
+
+                this.updateUI();
+            }
+
+            spawnPlatformAtHeight(y) {
+                const width = Math.max(60, 110 - (y * 0.01)); // gets smaller as climber goes higher
+                const x = Math.random() * (this.width - width);
+                
+                // Platform types: normal, ice (slippery), crumbly (breaks on touch)
+                let type = 'normal';
+                const rand = Math.random();
+                if (y > 1000) {
+                    if (rand < 0.2) type = 'ice';
+                    else if (rand < 0.35) type = 'crumbly';
+                } else if (y > 500) {
+                    if (rand < 0.15) type = 'crumbly';
+                }
+
+                // Add platform object
+                const platform = {
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: 18,
+                    type: type,
+                    life: type === 'crumbly' ? 25 : null, // frames left before crumbling
+                    hasSpikes: Math.random() < (y > 1500 ? 0.3 : (y > 800 ? 0.15 : 0)),
+                    hasGem: Math.random() < 0.4
+                };
+
+                this.platforms.push(platform);
+
+                // Spawn collectible gems
+                if (platform.hasGem && !platform.hasSpikes) {
+                    this.collectibles.push({
+                        x: platform.x + platform.width / 2 - 8,
+                        y: platform.y - 25,
+                        size: 16,
+                        collected: false
+                    });
+                }
+
+                if (y < this.highestGeneratedY) {
+                    this.highestGeneratedY = y;
+                }
+            }
+
+            spawnRock() {
+                // Drop falling rock hazard from above screen
+                const spawnX = Math.random() * (this.width - 24);
+                const spawnY = this.cameraY - 50;
+                
+                this.rocks.push({
+                    x: spawnX,
+                    y: spawnY,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: 3 + Math.random() * 3, // drop speed
+                    size: 24,
+                    rotation: 0
+                });
+            }
+
+            spawnSplashParticles(x, y, color) {
+                for (let i = 0; i < 8; i++) {
+                    this.particles.push({
+                        x,
+                        y,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        color,
+                        life: 20 + Math.random() * 15,
+                        size: 2 + Math.random() * 3
+                    });
+                }
+            }
+
+            update(dt) {
+                // Handle invulnerability flashing
+                if (this.player.invulnTimer > 0) {
+                    this.player.invulnTimer--;
+                }
+
+                // Gen higher platform dynamically as camera moves up
+                while (this.highestGeneratedY > this.cameraY - 200) {
+                    this.spawnPlatformAtHeight(this.highestGeneratedY - 85);
+                }
+
+                // Random Obstacles Spawn: Stone falls
+                if (Math.random() < 0.015 + (this.score * 0.00001)) {
+                    this.spawnRock();
+                }
+
+                // Physics Engine for Player
+                const friction = 0.85;
+                const iceFriction = 0.98;
+                const gravity = 0.55;
+
+                // Handle Left/Right Movements
+                let isMovingLeft = this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A'] || this.touchKeys.left;
+                let isMovingRight = this.keys['ArrowRight'] || this.keys['d'] || this.keys['D'] || this.touchKeys.right;
+
+                let platformFriction = friction;
+                if (this.player.lastPlatform && this.player.lastPlatform.type === 'ice') {
+                    platformFriction = iceFriction; // icy platforms are slippery
+                }
+
+                if (isMovingLeft) {
+                    this.player.vx -= 1.1;
+                    this.player.facingRight = false;
+                    this.player.state = 'climb';
+                } else if (isMovingRight) {
+                    this.player.vx += 1.1;
+                    this.player.facingRight = true;
+                    this.player.state = 'climb';
+                } else {
+                    this.player.vx *= platformFriction;
+                    if (Math.abs(this.player.vx) < 0.1) this.player.vx = 0;
+                    this.player.state = this.player.isGrounded ? 'idle' : 'jump';
+                }
+
+                // Apply gravity
+                this.player.vy += gravity;
+
+                // Max speeds
+                const maxVx = 6.5;
+                if (this.player.vx > maxVx) this.player.vx = maxVx;
+                if (this.player.vx < -maxVx) this.player.vx = -maxVx;
+
+                // Update horizontal position
+                this.player.x += this.player.vx;
+
+                // Screen boundaries left/right (wrap-around mechanic)
+                if (this.player.x < -this.player.width) {
+                    this.player.x = this.width;
+                } else if (this.player.x > this.width) {
+                    this.player.x = -this.player.width;
+                }
+
+                // Update vertical position
+                this.player.y += this.player.vy;
+
+                // Jump logic
+                let isJumping = this.keys['ArrowUp'] || this.keys['w'] || this.keys['W'] || this.keys[' '] || this.touchKeys.jump;
+                if (isJumping && this.player.isGrounded) {
+                    this.player.vy = -12.5; // Jump strength
+                    this.player.isGrounded = false;
+                    audio.playJump();
+                    this.spawnSplashParticles(this.player.x + this.player.width/2, this.player.y + this.player.height, '#94a3b8');
+                }
+
+                // Ground and platform collision logic
+                this.player.isGrounded = false;
+                
+                // We only land if falling down
+                if (this.player.vy >= 0) {
+                    for (let p of this.platforms) {
+                        if (
+                            this.player.x + this.player.width > p.x &&
+                            this.player.x < p.x + p.width &&
+                            this.player.y + this.player.height >= p.y &&
+                            this.player.y + this.player.height - this.player.vy <= p.y + 12
+                        ) {
+                            // Land on platform
+                            this.player.y = p.y - this.player.height;
+                            this.player.vy = 0;
+                            this.player.isGrounded = true;
+                            this.player.lastPlatform = p;
+
+                            // Handle fragile platform crumbling
+                            if (p.type === 'crumbly') {
+                                p.life--;
+                                if (p.life <= 0) {
+                                    this.spawnSplashParticles(p.x + p.width/2, p.y + p.height/2, '#b45309');
+                                    // Remove platform
+                                    this.platforms = this.platforms.filter(plat => plat !== p);
+                                    audio.playHurt();
+                                    this.player.isGrounded = false;
+                                }
+                            }
+
+                            // Spike touch check
+                            if (p.hasSpikes && this.player.invulnTimer === 0) {
+                                this.damagePlayer(1, "Spikes");
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // Update rocks physics
+                for (let r of this.rocks) {
+                    r.x += r.vx;
+                    r.y += r.vy;
+                    r.rotation += 0.05;
+
+                    // Hit box against player
+                    if (
+                        this.player.invulnTimer === 0 &&
+                        r.x + r.size > this.player.x &&
+                        r.x < this.player.x + this.player.width &&
+                        r.y + r.size > this.player.y &&
+                        r.y < this.player.y + this.player.height
+                    ) {
+                        this.damagePlayer(1, "Rock");
+                        this.spawnSplashParticles(r.x + r.size/2, r.y + r.size/2, '#ef4444');
+                        // Remove stone instantly
+                        this.rocks = this.rocks.filter(rock => rock !== r);
+                    }
+                }
+
+                // Update gems collectibles
+                for (let g of this.collectibles) {
+                    if (!g.collected &&
+                        g.x + g.size > this.player.x &&
+                        g.x < this.player.x + this.player.width &&
+                        g.y + g.size > this.player.y &&
+                        g.y < this.player.y + this.player.height
+                    ) {
+                        g.collected = true;
+                        this.gems += 1;
+                        audio.playGem();
+                        this.spawnSplashParticles(g.x + g.size/2, g.y + g.size/2, '#2dd4bf');
+                    }
+                }
+
+                // Update particles
+                for (let pt of this.particles) {
+                    pt.x += pt.vx;
+                    pt.y += pt.vy;
+                    pt.life--;
+                }
+                this.particles = this.particles.filter(pt => pt.life > 0);
+
+                // Filter out obstacles that flew far below screen
+                this.rocks = this.rocks.filter(r => r.y < this.cameraY + this.height + 100);
+                this.platforms = this.platforms.filter(p => p.y < this.cameraY + this.height + 150);
+                this.collectibles = this.collectibles.filter(g => !g.collected && g.y < this.cameraY + this.height + 100);
+
+                // Tracking height and dynamic auto-scrolling camera
+                const currentHeight = Math.floor((450 - this.player.y) / 10);
+                if (currentHeight > this.score) {
+                    this.score = currentHeight;
+                }
+
+                // Target camera position triggers upwards when player climbs above 50% screen height
+                const targetY = this.player.y - this.height / 2.2;
+                if (targetY < this.targetCameraY) {
+                    this.targetCameraY = targetY;
+                }
+
+                // Camera ease interpolation
+                this.cameraY += (this.targetCameraY - this.cameraY) * 0.1;
+
+                // Fall off check (fell past bottom of the scroll screen camera)
+                if (this.player.y > this.cameraY + this.height + 50) {
+                    this.damagePlayer(3, "Fall"); // Instant Game Over
+                }
+
+                this.updateUI();
+            }
+
+            damagePlayer(amount, reason) {
+                if (this.player.invulnTimer > 0) return;
+                this.lives -= amount;
+                audio.playHurt();
+                this.spawnSplashParticles(this.player.x + this.player.width/2, this.player.y + this.player.height/2, '#ef4444');
+                this.player.invulnTimer = 60; // 1 sec invuln state (flashing)
+
+                if (this.lives <= 0) {
+                    this.gameOver();
+                }
+            }
+
+            gameOver() {
+                this.isPlaying = false;
+                audio.playGameOver();
+                document.getElementById('finalScore').textContent = this.score;
+                document.getElementById('finalGems').textContent = this.gems;
+                document.getElementById('gameOverMenu').classList.remove('hidden');
+                document.getElementById('startMenu').classList.add('hidden');
+                document.getElementById('overlay').classList.remove('opacity-0', 'pointer-events-none');
+            }
+
+            updateUI() {
+                document.getElementById('scoreDisplay').textContent = this.score;
+                document.getElementById('gemDisplay').textContent = this.gems;
+                
+                // Draw heart string representation
+                let hearts = '';
+                for (let i = 0; i < 3; i++) {
+                    hearts += i < this.lives ? '❤️' : '🖤';
+                }
+                document.getElementById('livesDisplay').textContent = hearts;
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+
+                // Draw parallax pixel sky gradient background
+                const skyGradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+                // Sky gets deeper space blue-black as we climb higher
+                const spaceFactor = Math.min(1, this.score / 1500);
+                const colorTop = this.lerpColor('#1e1b4b', '#030712', spaceFactor);
+                const colorBottom = this.lerpColor('#1e293b', '#111827', spaceFactor);
+                
+                skyGradient.addColorStop(0, colorTop);
+                skyGradient.addColorStop(1, colorBottom);
+                this.ctx.fillStyle = skyGradient;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                // Draw some background pixel mountain silhouettes
+                this.drawBackgroundMountains();
+
+                this.ctx.save();
+                // Apply Camera Translation
+                this.ctx.translate(0, -this.cameraY);
+
+                // Draw Platforms
+                for (let p of this.platforms) {
+                    SPRITES.drawPlatform(this.ctx, p.x, p.y, p.width, p.height, p.type);
+
+                    // Draw spikes if exists
+                    if (p.hasSpikes) {
+                        this.ctx.fillStyle = '#94a3b8';
+                        const spikeCount = Math.floor(p.width / 16);
+                        for (let s = 0; s < spikeCount; s++) {
+                            const sx = p.x + s * 16 + 4;
+                            const sy = p.y - 10;
+                            // Draw miniature pixel triangle spike
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(sx, p.y);
+                            this.ctx.lineTo(sx + 6, sy);
+                            this.ctx.lineTo(sx + 12, p.y);
+                            this.ctx.closePath();
+                            this.ctx.fill();
+                        }
+                    }
+                }
+
+                // Draw Collectibles (Gems)
+                for (let g of this.collectibles) {
+                    if (!g.collected) {
+                        SPRITES.drawGem(this.ctx, g.x, g.y, g.size);
+                    }
+                }
+
+                // Draw Rocks
+                for (let r of this.rocks) {
+                    SPRITES.drawRock(this.ctx, r.x, r.y, r.size);
+                }
+
+                // Draw Particles
+                for (let pt of this.particles) {
+                    this.ctx.fillStyle = pt.color;
+                    this.ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
+                }
+
+                // Draw Player
+                const isInvulnFlashing = this.player.invulnTimer > 0 && Math.floor(this.player.invulnTimer / 4) % 2 === 0;
+                if (!isInvulnFlashing) {
+                    SPRITES.drawPlayer(this.ctx, this.player.x, this.player.y, this.player.width, this.player.facingRight, this.player.state);
+                }
+
+                this.ctx.restore();
+            }
+
+            drawBackgroundMountains() {
+                // Background distant pixel silhouettes
+                this.ctx.fillStyle = '#1e1b4b';
+                this.ctx.globalAlpha = 0.25;
+                
+                // Draw mountain spikes
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, this.height);
+                this.ctx.lineTo(80, this.height - 180);
+                this.ctx.lineTo(160, this.height - 100);
+                this.ctx.lineTo(260, this.height - 240);
+                this.ctx.lineTo(340, this.height - 140);
+                this.ctx.lineTo(this.width, this.height - 210);
+                this.ctx.lineTo(this.width, this.height);
+                this.ctx.closePath();
+                this.ctx.fill();
+                this.ctx.globalAlpha = 1.0;
+            }
+
+            lerpColor(a, b, amount) {
+                const ah = parseInt(a.replace(/#/g, ''), 16),
+                      ar = ah >> 16, ag = ah >> 8 & 0xff, ab = ah & 0xff,
+                      bh = parseInt(b.replace(/#/g, ''), 16),
+                      br = bh >> 16, bg = bh >> 8 & 0xff, bb = bh & 0xff,
+                      rr = ar + amount * (br - ar),
+                      rg = ag + amount * (bg - ag),
+                      rb = ab + amount * (bb - ab);
+                return '#' + ((1 << 24) + (Math.round(rr) << 16) + (Math.round(rg) << 8) + Math.round(rb)).toString(16).slice(1);
+            }
+        }
+
+        // --- Application Bootstrap & Event Wire-up ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Render Lucide Icons
+            lucide.createIcons();
+
+            const game = new GameEngine();
+            let animationFrameId;
+
+            // Frame Loop
+            function gameLoop() {
+                if (game.isPlaying) {
+                    game.update();
+                }
+                game.draw();
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+
+            // Start Initial Mock draw loop
+            game.draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+
+            // Handle Navigation & Dialogs
+            const guideModal = document.getElementById('guideModal');
+            const settingsModal = document.getElementById('settingsModal');
+            const sheetUrlInput = document.getElementById('sheetUrlInput');
+            const syncIndicator = document.getElementById('syncIndicator');
+
+            // Set Initial Values
+            sheetUrlInput.value = CLIMBER_DB.getApiUrl();
+            updateIndicatorStatus();
+
+            function updateIndicatorStatus() {
+                if (CLIMBER_DB.isApiConfigured()) {
+                    syncIndicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> 구글 시트 연동됨';
+                    syncIndicator.className = 'text-[10px] bg-green-950/40 text-green-400 border border-green-900/50 px-2 py-0.5 rounded flex items-center gap-1';
+                } else {
+                    syncIndicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span> 로컬 모드';
+                    syncIndicator.className = 'text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 flex items-center gap-1';
+                }
+            }
+
+            // Open/Close Modals
+            document.getElementById('guideBtn').addEventListener('click', () => guideModal.classList.remove('hidden'));
+            document.getElementById('settingsBtn').addEventListener('click', () => settingsModal.classList.remove('hidden'));
+
+            document.querySelectorAll('.closeModal').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    guideModal.classList.add('hidden');
+                    settingsModal.classList.add('hidden');
+                });
+            });
+
+            // Save Settings
+            document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+                CLIMBER_DB.setApiUrl(sheetUrlInput.value);
+                updateIndicatorStatus();
+                loadLeaderboard();
+                settingsModal.classList.add('hidden');
+            });
+
+            // Refresh Scores UI Action
+            document.getElementById('refreshRankBtn').addEventListener('click', () => {
+                loadLeaderboard();
+            });
+
+            // Start & Restart Core Flow
+            document.getElementById('startGameBtn').addEventListener('click', () => {
+                audio.init();
+                document.getElementById('overlay').classList.add('opacity-0', 'pointer-events-none');
+                game.isPlaying = true;
+                game.reset();
+            });
+
+            document.getElementById('restartGameBtn').addEventListener('click', () => {
+                document.getElementById('gameOverMenu').classList.add('hidden');
+                document.getElementById('overlay').classList.add('opacity-0', 'pointer-events-none');
+                document.getElementById('submissionStatus').textContent = "";
+                game.isPlaying = true;
+                game.reset();
+            });
+
+            // Submit High score to API
+            document.getElementById('submitScoreBtn').addEventListener('click', async () => {
+                const nameInput = document.getElementById('playerName');
+                const name = nameInput.value.trim() || 'PLAYER';
+                const score = game.score;
+                const gems = game.gems;
+                const statusPara = document.getElementById('submissionStatus');
+
+                statusPara.textContent = '등록 진행 중...';
+                statusPara.className = 'text-[11px] text-yellow-400 min-h-[16px] text-left';
+
+                const result = await CLIMBER_DB.submitScore(name, score, gems);
+                if (result.success) {
+                    statusPara.textContent = result.isSynced ? '🎉 구글 시트에 랭킹 등록 완료!' : '💾 로컬 랭킹 등록 완료!';
+                    statusPara.className = 'text-[11px] text-green-400 min-h-[16px] text-left';
+                    loadLeaderboard();
+                } else {
+                    statusPara.textContent = '❌ 등록에 실패했습니다.';
+                    statusPara.className = 'text-[11px] text-red-400 min-h-[16px] text-left';
+                }
+            });
+
+            // Dynamic Leaderboard Fetch/Renderer
+            async function loadLeaderboard() {
+                const listEl = document.getElementById('leaderboardList');
+                listEl.innerHTML = '<div class="text-center text-slate-500 py-6">랭킹 동기화 중...</div>';
+                
+                const ranks = await CLIMBER_DB.getRankings();
+                
+                if (!ranks || ranks.length === 0) {
+                    listEl.innerHTML = '<div class="text-center text-slate-500 py-6">기록된 점수가 없습니다!</div>';
+                    return;
+                }
+
+                listEl.innerHTML = '';
+                ranks.forEach((row, i) => {
+                    const item = document.createElement('div');
+                    
+                    // Style medals
+                    let rankBadge = `${i + 1}`;
+                    let bgStyle = 'bg-slate-800/60 hover:bg-slate-800';
+                    let textStyle = 'text-slate-300';
+                    
+                    if (i === 0) {
+                        rankBadge = '🥇';
+                        bgStyle = 'bg-yellow-950/40 border border-yellow-800/30 hover:bg-yellow-950/60';
+                        textStyle = 'text-yellow-400 font-bold';
+                    } else if (i === 1) {
+                        rankBadge = '🥈';
+                        bgStyle = 'bg-slate-200/10 border border-slate-500/20 hover:bg-slate-200/20';
+                        textStyle = 'text-slate-200';
+                    } else if (i === 2) {
+                        rankBadge = '🥉';
+                        bgStyle = 'bg-amber-950/30 border border-amber-900/20 hover:bg-amber-950/50';
+                        textStyle = 'text-amber-500';
+                    }
+
+                    item.className = `flex justify-between items-center px-3 py-2 rounded-lg ${bgStyle} transition-colors`;
+                    item.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 text-center text-xs font-black">${rankBadge}</span>
+                            <span class="${textStyle} font-semibold">${escapeHtml(row.name)}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-yellow-400 font-bold text-xs">${row.score}m</span>
+                            <span class="text-[10px] text-teal-400">💎 ${row.gems}</span>
+                        </div>
+                    `;
+                    listEl.appendChild(item);
+                });
+            }
+
+            // Quick helper to prevent HTML injection in leaderboard names
+            function escapeHtml(str) {
+                return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            }
+
+            // Trigger initial fetch
+            loadLeaderboard();
+        });
+    </script>
+</body>
+</html>
